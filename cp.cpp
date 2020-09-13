@@ -6,6 +6,10 @@
 
 #include <unistd.h>
 
+#define ERRPOINTER -1
+
+int cp(const int src_fd, const int dst_fd);
+
 int main(int argc, char* argv[])
 {
 	if (argc != 3)
@@ -29,6 +33,15 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 	
+	cp(src_fd, dst_fd);
+	
+	return 0;
+}
+
+
+int cp(const int src_fd, const int dst_fd)
+{
+	
 	int size_of_file = lseek(src_fd, 0, SEEK_END);
 	lseek(src_fd, 0, SEEK_DATA);
 	char* readed = new char [size_of_file]{};
@@ -36,10 +49,38 @@ int main(int argc, char* argv[])
 	
 	write(dst_fd, readed, size_of_file);
 	delete[] readed;
+	
+	struct stat* st = new struct stat;
+	
+	if(st == nullptr)
+	{
+		perror("Failed to allocate memory for statbuf");
+		return ERRPOINTER;
+	}
+	
+	fstat(src_fd, st);
+	mode_t mode = st -> st_mode;
+	fchmod(dst_fd, mode);
+	
 	close(src_fd);
 	close(dst_fd);
+	delete st;
 	
 	return 0;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
