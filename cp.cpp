@@ -24,7 +24,7 @@
 
 char* get_new_pathname(char* directory_name, char* file_name);
 int copy_directory(char* src_pathname, char* dst_name);
-int copy_file(int src_file, int dst_file);
+int copy_file(char* src_name, char* dst_name);
 
 
 int main(int argc, char* argv[])
@@ -47,13 +47,6 @@ int main(int argc, char* argv[])
     
     if(S_ISREG(src_stats -> st_mode))
     {
-        int src_file = open(argv[1], O_RDONLY);
-        if(src_file == 0)
-        {
-            perror("Failed to open source");
-            return 1;
-        }
-        
         struct stat* dst_stats = new struct stat;
         status = lstat(argv[2], dst_stats);
         if(status == -1 or S_ISREG(dst_stats -> st_mode))
@@ -65,10 +58,8 @@ int main(int argc, char* argv[])
                 return 1;
             }
             
-            copy_file(src_file, dst_file);
+            copy_file(argv[1], argv[2]);
             
-            close(src_file);
-            close(dst_file);
             return 0;
         }
         
@@ -82,11 +73,9 @@ int main(int argc, char* argv[])
             }
             
             char* dst_pathname = get_new_pathname(argv[2], argv[1]);
-            int dst_file = open(dst_pathname, O_WRONLY | O_TRUNC | O_CREAT, 0600);
             
-            copy_file(src_file, dst_file);
+            copy_file(argv[1], dst_pathname);
             
-            close(src_file);
             closedir(dst_dir);
             
             return 0;
@@ -111,8 +100,11 @@ int main(int argc, char* argv[])
 }
 
 
-int copy_file(int src_file, int dst_file)
+int copy_file(char* src_name, char* dst_name)
 {
+    int src_file = open(src_name, O_RDONLY);
+    int dst_file = open(dst_name, O_WRONLY | O_TRUNC | O_CREAT, 0600);
+    
 	int size_of_file = lseek(src_file, 0, SEEK_END);
 	lseek(src_file, 0, SEEK_DATA);
     
@@ -133,6 +125,9 @@ int copy_file(int src_file, int dst_file)
     
 	delete[] readed;
 	delete src_stats;
+    
+    close(src_file);
+    close(dst_file);
 	
 	return 0;
 }
@@ -142,9 +137,6 @@ int copy_directory(char* src_name, char* dst_name)
     dirent64* entry = nullptr;
     char* dst_pathname = nullptr;
     char* src_pathname = nullptr;
-    
-    int dst_file = 0;
-    int src_file = 0;
     
     struct stat* src_file_stats = new struct stat;
     
@@ -172,12 +164,12 @@ int copy_directory(char* src_name, char* dst_name)
         else if(S_ISREG(src_file_stats -> st_mode))
         {
             dst_pathname = get_new_pathname(dst_name, entry -> d_name);
-            dst_file = open(dst_pathname, O_WRONLY | O_TRUNC | O_CREAT, 0600);
+            //dst_file = open(dst_pathname, O_WRONLY | O_TRUNC | O_CREAT, 0600);
             
             src_pathname = get_new_pathname(src_name, entry -> d_name);
-            src_file = open(src_pathname, O_RDONLY);
+            //src_file = open(src_pathname, O_RDONLY);
             
-            copy_file(src_file, dst_file);
+            copy_file(src_pathname, dst_pathname);
             continue;
         }
         
