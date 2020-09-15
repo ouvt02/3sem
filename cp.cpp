@@ -142,7 +142,8 @@ int copy_directory(char* src_name, char* dst_name)
     
     DIR* src_dir = opendir(src_name);
     DIR* dst_dir = opendir(dst_name);
-    
+    int dst_poddir = 0;
+        
     while((entry = readdir64(src_dir)) != nullptr)
     {
         if(!strcmp(entry -> d_name, ".") or !strcmp(entry -> d_name, ".."))
@@ -156,6 +157,11 @@ int copy_directory(char* src_name, char* dst_name)
             src_pathname = get_new_pathname(src_name, entry -> d_name);
             dst_pathname = get_new_pathname(dst_name, entry -> d_name);
             mkdir(dst_pathname, src_file_stats -> st_mode);
+            
+            dst_poddir = open(dst_pathname, O_RDONLY);
+            fchmod(dst_poddir, src_file_stats -> st_mode);
+            close(dst_poddir);
+            
             copy_directory(src_pathname, dst_pathname);
             
             continue;
