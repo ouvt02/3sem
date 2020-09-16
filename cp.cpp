@@ -54,7 +54,7 @@ int main(int argc, char* argv[])
             int dst_file = open(argv[2], O_WRONLY | O_TRUNC | O_CREAT, 0600);
             if(dst_file == 0)
             {
-                perror("Failed to open destination");
+                perror("Failed to open destination source");
                 return 1;
             }
             
@@ -68,7 +68,7 @@ int main(int argc, char* argv[])
             DIR* dst_dir = opendir(argv[2]);
             if(dst_dir == nullptr)
             {
-                perror("Failed to open destination");
+                perror("Failed to open destination source");
                 return 1;
             }
             
@@ -103,7 +103,18 @@ int main(int argc, char* argv[])
 int copy_file(char* src_name, char* dst_name)
 {
     int src_file = open(src_name, O_RDONLY);
+    if(src_file < 0)
+    {
+        perror("Failed to open source");
+        return 1;
+    }
+    
     int dst_file = open(dst_name, O_WRONLY | O_TRUNC | O_CREAT, 0600);
+    if(dst_file < 0)
+    {
+        perror("Failed to open destination");
+        return 1;
+    }
     
 	int size_of_file = lseek(src_file, 0, SEEK_END);
 	lseek(src_file, 0, SEEK_DATA);
@@ -141,7 +152,19 @@ int copy_directory(char* src_name, char* dst_name)
     struct stat* src_file_stats = new struct stat;
     
     DIR* src_dir = opendir(src_name);
+    if(src_dir == nullptr)
+    {
+        perror("Failed to open source");
+        return 1;
+    }
+    
     DIR* dst_dir = opendir(dst_name);
+    if(dst_dir == nullptr)
+    {
+        perror("Failed to open destination source");
+        return 1;
+    }
+    
     int dst_poddir = 0;
         
     while((entry = readdir64(src_dir)) != nullptr)
@@ -170,10 +193,7 @@ int copy_directory(char* src_name, char* dst_name)
         else if(S_ISREG(src_file_stats -> st_mode))
         {
             dst_pathname = get_new_pathname(dst_name, entry -> d_name);
-            //dst_file = open(dst_pathname, O_WRONLY | O_TRUNC | O_CREAT, 0600);
-            
             src_pathname = get_new_pathname(src_name, entry -> d_name);
-            //src_file = open(src_pathname, O_RDONLY);
             
             copy_file(src_pathname, dst_pathname);
             continue;
