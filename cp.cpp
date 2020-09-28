@@ -17,10 +17,15 @@
 #define ERRPOINTER -1
 
 
+//#define RELEASE
+
+
 #ifndef RELEASE
 	#define DEBUG printf("\x1b[35m>> debug from <%s::%d>\n\x1b[0m", __FILE__, __LINE__);
+    #define SWITCH if (true)
 #else
 	#define DEBUG
+    #define SWITCH if (false)
 #endif
 
 #define MB * 1048576 //bytes in Megabyte
@@ -33,10 +38,11 @@
 char* get_new_pathname(const char* directory_name, const char* file_name);
 int copy_directory(const char* src_pathname, const char* dst_name);
 int copy_file(const char* src_name, const char* dst_name);
+int copy_links(const char* src_link_name, const char* dst_name);
 
 
 int main(int argc, char* argv[])
-{
+{    
 	if (argc != 3)
 	{
 		printf("Usage: %s src dst\n", argv[0]);
@@ -90,13 +96,10 @@ int main(int argc, char* argv[])
         return 0;
     }
     
-//     else if (S_ISLNK(src_stats.st_mode))
-//     {
-//         char* link_pathname = new char[src_stats.st_size + 1]{};
-//         readlink(argv[1], link_pathname, src_stats.st_size + 1);
-//         
-//         
-//     }
+    else if (S_ISLNK(src_stats.st_mode))
+    {
+        copy_links(argv[1], argv[2]);
+    }
     
     else
     {
@@ -170,6 +173,60 @@ int copy_file(const char* src_name, const char* dst_name)
 	return 0;
 }
 
+int copy_links(const char* src_link_name, const char* dst_name)
+{
+    struct stat src_stats = {};
+    int status = lstat(src_link_name, &src_stats);
+    if(status == -1)
+    {
+        perror("Failed to get stat for source");
+        return ERRPOINTER;
+    }
+    
+    char* link_pathname = new char[src_stats.st_size + 1]{};
+    readlink(src_link_name, link_pathname, src_stats.st_size + 1);
+    
+    char* current_directory = nullptr;
+    struct stat dst_stats = {};
+    status = lstat(dst_name, &dst_stats);
+    if(status == -1)
+    {
+        current_directory = new char[src_stats.st_size + 1]{};
+        getcwd(current_directory, src_stats.st_size);
+    }
+    
+    else
+    {
+        current_directory = new char[dst_stats.st_size + 1]{};
+        getcwd(current_directory, dst_stats.st_size);
+    }
+    
+    if(current_directory == nullptr)
+    {
+        printf("Bad findings of current_directory\n");
+        return ERRPOINTER;
+    }
+    
+    char* new_pathname = get_new_pathname(current_directory, dst_name);
+    
+    if(S_ISDIR(dst_stats.st_mode))
+        symlink(link_pathname, get_new_pathname(new_pathname, src_link_name));
+    
+    else if(S_ISLNK(dst_stats.st_mode) or status == -1)
+        symlink(link_pathname, new_pathname);
+    
+    else
+    {
+        printf("Something strange with dst\n");
+        return ERRPOINTER;
+    }
+    
+    delete[] link_pathname;
+    delete[] current_directory;
+    
+    return 0;
+}
+
 int copy_directory(const char* src_name, const char* dst_name)
 {
     dirent64* entry = nullptr;
@@ -226,6 +283,15 @@ int copy_directory(const char* src_name, const char* dst_name)
             continue;
         }
         
+        else if(S_ISLNK(src_file_stats -> st_mode))
+        {
+            src_pathname = get_new_pathname(src_name, entry -> d_name);
+            dst_pathname = get_new_pathname(dst_name, entry -> d_name);
+            
+            copy_links(src_pathname, dst_pathname);
+            continue;
+        }
+        
         else
         {
             printf("Something strange in src_dir\n");
@@ -252,6 +318,8 @@ char* get_new_pathname(const char* directory_name, const char* file_name)
     
     return pathname;
 }
+
+
 
 //time of birth -- statx
 //in stat different times
