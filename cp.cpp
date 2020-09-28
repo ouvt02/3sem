@@ -11,6 +11,8 @@
 #include <sys/dir.h>
 
 #include <dirent.h>
+#include <errno.h>
+#include <cstdlib>
 
 #define ERRPOINTER -1
 
@@ -21,10 +23,16 @@
 	#define DEBUG
 #endif
 
+#define MB * 1048576 //bytes in Megabyte
+#define KB * 1024
+#define BLOCK_SIZE 4 KB
 
-char* get_new_pathname(char* directory_name, char* file_name);
-int copy_directory(char* src_pathname, char* dst_name);
-int copy_file(char* src_name, char* dst_name);
+
+// #define _FILE_OFFSET_BITTS 64 //for lseek(without define may be short - 32) in man lseek64
+
+char* get_new_pathname(const char* directory_name, const char* file_name);
+int copy_directory(const char* src_pathname, const char* dst_name);
+int copy_file(const char* src_name, const char* dst_name);
 
 
 int main(int argc, char* argv[])
@@ -37,33 +45,25 @@ int main(int argc, char* argv[])
 	
 	int status = 0;
 	
-	struct stat* src_stats = new struct stat;
-    status = lstat(argv[1], src_stats);
+	struct stat src_stats = {};
+    status = lstat(argv[1], &src_stats);
     if(status == -1)
     {
         perror("Failed to get stat for source");
         return ERRPOINTER;
     }
     
-    if(S_ISREG(src_stats -> st_mode))
+    if(S_ISREG(src_stats.st_mode))
     {
-        struct stat* dst_stats = new struct stat;
-        status = lstat(argv[2], dst_stats);
-        if(status == -1 or S_ISREG(dst_stats -> st_mode))
+        struct stat dst_stats = {};
+        status = lstat(argv[2], &dst_stats);
+        if(status == -1 or S_ISREG(dst_stats.st_mode))
         {
-            int dst_file = open(argv[2], O_WRONLY | O_TRUNC | O_CREAT, 0600);
-            if(dst_file == 0)
-            {
-                perror("Failed to open destination source");
-                return 1;
-            }
-            
             copy_file(argv[1], argv[2]);
-            
             return 0;
         }
         
-        else if(S_ISDIR(dst_stats -> st_mode))
+        else if(S_ISDIR(dst_stats.st_mode))
         {
             DIR* dst_dir = opendir(argv[2]);
             if(dst_dir == nullptr)
@@ -83,12 +83,20 @@ int main(int argc, char* argv[])
         
     }
     
-    else if(S_ISDIR(src_stats -> st_mode))
+    else if(S_ISDIR(src_stats.st_mode))
     {
         copy_directory(argv[1], argv[2]);
         
         return 0;
     }
+    
+//     else if (S_ISLNK(src_stats.st_mode))
+//     {
+//         char* link_pathname = new char[src_stats.st_size + 1]{};
+//         readlink(argv[1], link_pathname, src_stats.st_size + 1);
+//         
+//         
+//     }
     
     else
     {
@@ -100,7 +108,7 @@ int main(int argc, char* argv[])
 }
 
 
-int copy_file(char* src_name, char* dst_name)
+int copy_file(const char* src_name, const char* dst_name)
 {
     int src_file = open(src_name, O_RDONLY);
     if(src_file < 0)
@@ -116,26 +124,45 @@ int copy_file(char* src_name, char* dst_name)
         return 1;
     }
     
-	int size_of_file = lseek(src_file, 0, SEEK_END);
-	lseek(src_file, 0, SEEK_DATA);
-    
-	char* readed = new char [size_of_file]{};
+    struct stat src_stats = {};
+    int status = lstat(src_name, &src_stats);
+    if (status < 0)
+    {
+        perror("Cannot read file stats");
+        return 1;
+    }
+
+
+    char* readed = new char [BLOCK_SIZE]{};
+        
     if (readed == nullptr)
     {
         perror("Bad allocation");
         return ERRPOINTER;
     }
+
+    ssize_t n_readed = 0;
+    while ((n_readed = read(src_file, readed, BLOCK_SIZE)) > 0)
+    {
+        ssize_t n_writed = 0;
+        while (n_writed < n_readed)
+        {
+            ssize_t writed = 0;
+            if ((writed = write(dst_file, readed + n_writed, n_readed - n_writed)) == -1)
+            {
+                perror("Writing error");
+                exit(errno);
+            }
+            
+            n_writed += writed;
+        }
+        
+    }
     
-	read(src_file, readed, size_of_file);
-	
-	write(dst_file, readed, size_of_file);
+   
+    fchmod(dst_file, src_stats.st_mode); 
     
-    struct stat* src_stats = new struct stat;
-	fstat(src_file, src_stats);
-	fchmod(dst_file, src_stats -> st_mode);
-    
-	delete[] readed;
-	delete src_stats;
+    delete[] readed;
     
     close(src_file);
     close(dst_file);
@@ -143,7 +170,7 @@ int copy_file(char* src_name, char* dst_name)
 	return 0;
 }
 
-int copy_directory(char* src_name, char* dst_name)
+int copy_directory(const char* src_name, const char* dst_name)
 {
     dirent64* entry = nullptr;
     char* dst_pathname = nullptr;
@@ -213,7 +240,7 @@ int copy_directory(char* src_name, char* dst_name)
     return 0;
 }
 
-char* get_new_pathname(char* directory_name, char* file_name)
+char* get_new_pathname(const char* directory_name, const char* file_name)
 {
     char* pathname = new char[strlen(file_name) + strlen(directory_name) + 2];
     if (pathname == nullptr)
@@ -226,7 +253,8 @@ char* get_new_pathname(char* directory_name, char* file_name)
     return pathname;
 }
 
-
-
+//time of birth -- statx
+//in stat different times
+//add utime/futimes/futimens
 
 
