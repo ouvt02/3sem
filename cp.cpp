@@ -13,6 +13,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <cstdlib>
+#include <fcntl.h>
 
 #define ERRPOINTER -1
 
@@ -164,6 +165,8 @@ int copy_file(const char* src_name, const char* dst_name)
     
    
     fchmod(dst_file, src_stats.st_mode); 
+    struct timespec dst_times[2] = {src_stats.st_atim, src_stats.st_mtim};
+    futimens(dst_file, dst_times);
     
     delete[] readed;
     
@@ -233,7 +236,7 @@ int copy_directory(const char* src_name, const char* dst_name)
     char* dst_pathname = nullptr;
     char* src_pathname = nullptr;
     
-    struct stat* src_file_stats = new struct stat;
+    struct stat src_file_stats = {};
     
     DIR* src_dir = opendir(src_name);
     if(src_dir == nullptr)
@@ -257,16 +260,20 @@ int copy_directory(const char* src_name, const char* dst_name)
             continue;
         
         src_pathname = get_new_pathname(src_name, entry -> d_name);
-        lstat(src_pathname, src_file_stats);
+        lstat(src_pathname, &src_file_stats);
         
-        if(S_ISDIR(src_file_stats -> st_mode))
+        if(S_ISDIR(src_file_stats.st_mode))
         {
             src_pathname = get_new_pathname(src_name, entry -> d_name);
             dst_pathname = get_new_pathname(dst_name, entry -> d_name);
-            mkdir(dst_pathname, src_file_stats -> st_mode);
+            mkdir(dst_pathname, src_file_stats.st_mode);
             
             dst_poddir = open(dst_pathname, O_RDONLY);
-            fchmod(dst_poddir, src_file_stats -> st_mode);
+            fchmod(dst_poddir, src_file_stats.st_mode);
+            
+            struct timespec dst_times[2] = {src_file_stats.st_atim, src_file_stats.st_mtim};
+            futimens(dst_poddir, dst_times);///////don't work for directories'
+            
             close(dst_poddir);
             
             copy_directory(src_pathname, dst_pathname);
@@ -274,7 +281,7 @@ int copy_directory(const char* src_name, const char* dst_name)
             continue;
         }
         
-        else if(S_ISREG(src_file_stats -> st_mode))
+        else if(S_ISREG(src_file_stats.st_mode))
         {
             dst_pathname = get_new_pathname(dst_name, entry -> d_name);
             src_pathname = get_new_pathname(src_name, entry -> d_name);
@@ -283,7 +290,7 @@ int copy_directory(const char* src_name, const char* dst_name)
             continue;
         }
         
-        else if(S_ISLNK(src_file_stats -> st_mode))
+        else if(S_ISLNK(src_file_stats.st_mode))
         {
             src_pathname = get_new_pathname(src_name, entry -> d_name);
             dst_pathname = get_new_pathname(dst_name, entry -> d_name);
