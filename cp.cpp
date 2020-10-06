@@ -35,6 +35,11 @@
 #define KB * 1024
 #define BLOCK_SIZE 4 KB
 
+void print_proc_info(const char* info_type)
+{
+    printf("%s: UID = %d GID = %d\n", info_type, getuid(), getgid());
+}
+
 
 // #define _FILE_OFFSET_BITTS 64 //for lseek(without define may be short - 32) in man lseek64
 
@@ -174,6 +179,7 @@ int copy_file(const char* src_name, const char* dst_name)
     
    
     fchmod(dst_file, src_stats.st_mode); 
+    lchown(dst_name, src_stats.st_uid, src_stats.st_gid);
     struct timespec dst_times[2] = {src_stats.st_atim, src_stats.st_mtim};
     futimens(dst_file, dst_times);
     
@@ -236,6 +242,9 @@ int copy_links(const char* src_link_name, const char* dst_name)
         return ERROR;
     }
     
+    
+    lchown(new_pathname, src_stats.st_uid, src_stats.st_gid);
+    chmod(new_pathname, src_stats.st_mode);
     struct timespec dst_times[2] = {src_stats.st_atim, src_stats.st_mtim};
     int dst_link = open(new_pathname, O_RDONLY);
     futimens(dst_link, dst_times);
@@ -270,6 +279,7 @@ int copy_FIFO(const char* src_name, const char* dst_name)
     src_times.actime = src_stats.st_atim.tv_sec;
     src_times.modtime = src_stats.st_mtim.tv_sec;
     utime(dst_name, &src_times);
+    lchown(dst_name, src_stats.st_uid, src_stats.st_gid);   
     
     return 0;
 }
@@ -313,6 +323,7 @@ int copy_directory(const char* src_name, const char* dst_name)
             
             dst_poddir = open(dst_pathname, O_RDONLY);
             fchmod(dst_poddir, src_file_stats.st_mode);
+            lchown(dst_pathname, src_file_stats.st_uid, src_file_stats.st_gid);
             
             struct timespec dst_times[2] = {src_file_stats.st_atim, src_file_stats.st_mtim};
             
@@ -379,18 +390,7 @@ char* get_new_pathname(const char* directory_name, const char* file_name)
 }
 
 
-
-//time of birth -- statx
-//in stat different times
-//add utime/futimes/futimens
-
-//указатель на текущее место где лежит буффер cstring
-
-//mkFIFO короче просто создаем с таким же именем и такими же правами
 //mknod для файловых устройств
-//fchmod -
 
 //если не удалось скопировать один файл, вывести что нельзя скопировать и продолжить копировать остальные
-//посмотреть влияет ли umask на chmod, оно влияет только на open, но мы итак 0600 поэтому все должно быть хорошо
-//если umask 0777 то open создаст с правами 0000
-//в начале main задать umask, чтобы оно не прилетело какое-нибудь странное из окружения(чтобы точно не занулились верхние и занулились нижние)
+
