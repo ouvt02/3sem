@@ -272,11 +272,12 @@ int copy_directory(const char* src_name, const char* dst_name)
             fchmod(dst_poddir, src_file_stats.st_mode);
             
             struct timespec dst_times[2] = {src_file_stats.st_atim, src_file_stats.st_mtim};
-            futimens(dst_poddir, dst_times);///////don't work for directories'
-            
-            close(dst_poddir);
             
             copy_directory(src_pathname, dst_pathname);
+            
+            futimens(dst_poddir, dst_times);
+            
+            close(dst_poddir);
             
             continue;
         }
@@ -332,4 +333,13 @@ char* get_new_pathname(const char* directory_name, const char* file_name)
 //in stat different times
 //add utime/futimes/futimens
 
+//указатель на текущее место где лежит буффер cstring
 
+//mkFIFO короче просто создаем с таким же именем и такими же правами
+//mknod для файловых устройств
+//fchmod -
+
+//если не удалось скопировать один файл, вывести что нельзя скопировать и продолжить копировать остальные
+//посмотреть влияет ли umask на chmod, оно влияет только на open, но мы итак 0600 поэтому все должно быть хорошо
+//если umask 0777 то open создаст с правами 0000
+//в начале main задать umask, чтобы оно не прилетело какое-нибудь странное из окружения(чтобы точно не занулились верхние и занулились нижние)
