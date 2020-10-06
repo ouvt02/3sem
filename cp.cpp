@@ -35,12 +35,6 @@
 #define KB * 1024
 #define BLOCK_SIZE 4 KB
 
-void print_proc_info(const char* info_type)
-{
-    printf("%s: UID = %d GID = %d\n", info_type, getuid(), getgid());
-}
-
-
 // #define _FILE_OFFSET_BITTS 64 //for lseek(without define may be short - 32) in man lseek64
 
 char* get_new_pathname(const char* directory_name, const char* file_name);
