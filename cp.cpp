@@ -15,7 +15,9 @@
 #include <cstdlib>
 #include <fcntl.h>
 
-#define ERRPOINTER -1
+#include <utime.h>
+
+#define ERROR -1
 
 
 //#define RELEASE
@@ -40,6 +42,7 @@ char* get_new_pathname(const char* directory_name, const char* file_name);
 int copy_directory(const char* src_pathname, const char* dst_name);
 int copy_file(const char* src_name, const char* dst_name);
 int copy_links(const char* src_link_name, const char* dst_name);
+int copy_FIFO(const char* src_name, const char* dst_name);
 
 
 int main(int argc, char* argv[])
@@ -47,7 +50,7 @@ int main(int argc, char* argv[])
 	if (argc != 3)
 	{
 		printf("Usage: %s src dst\n", argv[0]);
-		return 1;
+		return ERROR;
 	}
 	
 	int status = 0;
@@ -57,7 +60,7 @@ int main(int argc, char* argv[])
     if(status == -1)
     {
         perror("Failed to get stat for source");
-        return ERRPOINTER;
+        return ERROR;
     }
     
     if(S_ISREG(src_stats.st_mode))
@@ -76,7 +79,7 @@ int main(int argc, char* argv[])
             if(dst_dir == nullptr)
             {
                 perror("Failed to open destination source");
-                return 1;
+                return ERROR;
             }
             
             char* dst_pathname = get_new_pathname(argv[2], argv[1]);
@@ -93,19 +96,25 @@ int main(int argc, char* argv[])
     else if(S_ISDIR(src_stats.st_mode))
     {
         copy_directory(argv[1], argv[2]);
-        
         return 0;
     }
     
     else if (S_ISLNK(src_stats.st_mode))
     {
         copy_links(argv[1], argv[2]);
+        return 0;
+    }
+    
+    else if (S_ISFIFO(src_stats.st_mode))
+    {
+        copy_FIFO(argv[1], argv[2]);
+        return 0;
     }
     
     else
     {
         printf("Something strande with source or directory\n");
-        return 1;
+        return ERROR;
     }
     
     return 0;
@@ -118,14 +127,14 @@ int copy_file(const char* src_name, const char* dst_name)
     if(src_file < 0)
     {
         perror("Failed to open source");
-        return 1;
+        return ERROR;
     }
     
     int dst_file = open(dst_name, O_WRONLY | O_TRUNC | O_CREAT, 0600);
     if(dst_file < 0)
     {
         perror("Failed to open destination");
-        return 1;
+        return ERROR;
     }
     
     struct stat src_stats = {};
@@ -133,7 +142,7 @@ int copy_file(const char* src_name, const char* dst_name)
     if (status < 0)
     {
         perror("Cannot read file stats");
-        return 1;
+        return ERROR;
     }
 
 
@@ -142,7 +151,7 @@ int copy_file(const char* src_name, const char* dst_name)
     if (readed == nullptr)
     {
         perror("Bad allocation");
-        return ERRPOINTER;
+        return ERROR;
     }
 
     ssize_t n_readed = 0;
@@ -183,7 +192,7 @@ int copy_links(const char* src_link_name, const char* dst_name)
     if(status == -1)
     {
         perror("Failed to get stat for source");
-        return ERRPOINTER;
+        return ERROR;
     }
     
     char* link_pathname = new char[src_stats.st_size + 1]{};
@@ -207,13 +216,16 @@ int copy_links(const char* src_link_name, const char* dst_name)
     if(current_directory == nullptr)
     {
         printf("Bad findings of current_directory\n");
-        return ERRPOINTER;
+        return ERROR;
     }
     
     char* new_pathname = get_new_pathname(current_directory, dst_name);
     
     if(S_ISDIR(dst_stats.st_mode))
-        symlink(link_pathname, get_new_pathname(new_pathname, src_link_name));
+    {
+        new_pathname = get_new_pathname(new_pathname, src_link_name);
+        symlink(link_pathname, new_pathname);
+    }
     
     else if(S_ISLNK(dst_stats.st_mode) or status == -1)
         symlink(link_pathname, new_pathname);
@@ -221,15 +233,46 @@ int copy_links(const char* src_link_name, const char* dst_name)
     else
     {
         printf("Something strange with dst\n");
-        return ERRPOINTER;
+        return ERROR;
     }
     
+    struct timespec dst_times[2] = {src_stats.st_atim, src_stats.st_mtim};
+    int dst_link = open(new_pathname, O_RDONLY);
+    futimens(dst_link, dst_times);
+
     delete[] link_pathname;
     delete[] current_directory;
     
     return 0;
 }
 
+
+int copy_FIFO(const char* src_name, const char* dst_name)
+{
+    int status = 0;
+	
+	struct stat src_stats = {};
+    status = lstat(src_name, &src_stats);
+    if(status == -1)
+    {
+        perror("Failed to get stat for source");
+        return ERROR;
+    }
+    
+    status = mkfifo(dst_name, src_stats.st_mode);
+    if(status != 0)
+    {
+        perror("Failed to create FIFO");
+        return ERROR;
+    }
+    
+    utimbuf src_times;
+    src_times.actime = src_stats.st_atim.tv_sec;
+    src_times.modtime = src_stats.st_mtim.tv_sec;
+    utime(dst_name, &src_times);
+    
+    return 0;
+}
 int copy_directory(const char* src_name, const char* dst_name)
 {
     dirent64* entry = nullptr;
@@ -242,14 +285,14 @@ int copy_directory(const char* src_name, const char* dst_name)
     if(src_dir == nullptr)
     {
         perror("Failed to open source");
-        return 1;
+        return ERROR;
     }
     
     DIR* dst_dir = opendir(dst_name);
     if(dst_dir == nullptr)
     {
         perror("Failed to open destination source");
-        return 1;
+        return ERROR;
     }
     
     int dst_poddir = 0;
@@ -282,7 +325,7 @@ int copy_directory(const char* src_name, const char* dst_name)
             continue;
         }
         
-        else if(S_ISREG(src_file_stats.st_mode))
+        else if (S_ISREG(src_file_stats.st_mode))
         {
             dst_pathname = get_new_pathname(dst_name, entry -> d_name);
             src_pathname = get_new_pathname(src_name, entry -> d_name);
@@ -291,7 +334,7 @@ int copy_directory(const char* src_name, const char* dst_name)
             continue;
         }
         
-        else if(S_ISLNK(src_file_stats.st_mode))
+        else if (S_ISLNK(src_file_stats.st_mode))
         {
             src_pathname = get_new_pathname(src_name, entry -> d_name);
             dst_pathname = get_new_pathname(dst_name, entry -> d_name);
@@ -299,11 +342,19 @@ int copy_directory(const char* src_name, const char* dst_name)
             copy_links(src_pathname, dst_pathname);
             continue;
         }
+        else if (S_ISFIFO(src_file_stats.st_mode))
+        {
+            src_pathname = get_new_pathname(src_name, entry -> d_name);
+            dst_pathname = get_new_pathname(dst_name, entry -> d_name);
+            
+            copy_FIFO(src_pathname, dst_pathname);
+            continue;
+        }
         
         else
         {
             printf("Something strange in src_dir\n");
-            return 1;
+            return ERROR;
         }
         
     }
