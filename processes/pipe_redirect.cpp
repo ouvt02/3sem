@@ -8,14 +8,14 @@ int main()
     if(pipe(pipe_fd) == -1)
     {
         perror("Failed to create pipe");
-        return -1;
+        return 1;
     }
     
     pid_t child_id = fork();
     if(child_id == -1)
     {
         perror("Failed to fork");
-        return -1;
+        return 1;
     }
     
     if(child_id == 0)
@@ -28,7 +28,7 @@ int main()
         execlp("last", "last", "-f", "/var/log/wtmp", NULL);
         
         perror("Failed to execute 'last");
-        return -1;
+        return 1;
     }
     
     close(pipe_fd[1]);
@@ -39,5 +39,5 @@ int main()
     execlp("grep", "grep", "-v", "^user", NULL);
     
     perror("Failed to execute 'grep");
-    return -1;
+    return 1;
 }
