@@ -24,7 +24,7 @@ int main()
     waitpid(child_id, &child_status, 1);
     
     if (WIFEXITED(child_status))   
-        printf( "child has exited, status  = %d\n", WEXITSTATUS(child_status));//короче чем блок, поэтому остается в буффере для лучших времен, в файл ее не печатают => fflash
+        printf("child has exited, status  = %d\n", WEXITSTATUS(child_status));//короче чем блок, поэтому остается в буффере для лучших времен, в файл ее не печатают => fflash
     
     else if (WIFSIGNALED(child_status))
         printf("child was killed by signall '%s' (%d)\n", strsignal(WTERMSIG(child_status)), WTERMSIG(child_status));
