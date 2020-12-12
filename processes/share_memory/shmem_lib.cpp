@@ -9,6 +9,17 @@
 #include <unistd.h>
 #include <string.h>
 
+
+#ifndef RELEASE
+	#define DEBUG printf("\x1b[35m>> debug from <%s::%d>\n\x1b[0m", __FILE__, __LINE__);
+    #define SWITCH if (true)
+#else
+	#define DEBUG
+    #define SWITCH if (false)
+#endif
+
+
+
 class Client
 {
   private:
@@ -39,25 +50,33 @@ class Server
     int send_str(const char* text);
 };
 
+
 Server::Server(const char* memory_name)
 {
     this -> counter = (int*) this -> buf_common_memory;
+    this -> counter = new int;
     *(this -> counter) = 0;
     
-    this -> common_memory_name = new char[strlen(memory_name) + 1];
-    strcpy(this -> common_memory_name, memory_name);
+    this -> common_memory_name = new char[strlen(memory_name) + 2]{'/'};
+    strcpy(memory_name[0] == '/' ? this -> common_memory_name : 
+                                    (this -> common_memory_name) + 1, memory_name);
     
-    this -> common_memory = shm_open(this -> common_memory_name, O_WRONLY | O_CREAT, 0400);
+    this -> common_memory = shm_open(this -> common_memory_name, O_RDWR | O_TRUNC| O_CREAT, 0600);
     if (this -> common_memory == -1)
     {
-        perror("Failed to create common_memory");
+        perror("Failed to create common_memory in Server");
+        
+        delete[] this -> common_memory_name;
+        shm_unlink(this -> common_memory_name);
+        
         this -> ok = false;
     }
-    
 }
 
+
 Server::~Server()
-{    
+{
+    delete this -> counter;
     delete[] this -> common_memory_name;
     
     shm_unlink(this -> common_memory_name);
@@ -68,26 +87,34 @@ Server::~Server()
 Client::Client(const char* memory_name)
 {   
     this -> counter = (int*) this -> buf_common_memory;
+    this -> counter = new int;
     *(this -> counter) = 0;
     
-    this -> common_memory_name = new char[strlen(memory_name) + 1];
-    strcpy(this -> common_memory_name, memory_name);
+    this -> common_memory_name = new char[strlen(memory_name) + 2]{'/'};
+    strcpy(memory_name[0] == '/' ? this -> common_memory_name : 
+                                    (this -> common_memory_name) + 1, memory_name);
     
-    this -> common_memory = shm_open(this -> common_memory_name, O_RDONLY, 0);
+    this -> common_memory = shm_open(this -> common_memory_name, O_RDWR, 0);
     if (this -> common_memory == -1)
     {
-        perror("Failed to create common_memory");
+        perror("Failed to create common_memory in Client");
+        
+        delete[] this -> common_memory_name;
+        shm_unlink(this -> common_memory_name);
+        
         this -> ok = false;
     }
 }
 
 Client::~Client()
-{    
+{
+    delete this -> counter;
     delete[] this -> common_memory_name;
     
     shm_unlink(this -> common_memory_name);
     close(this -> common_memory);
 }
+
 
 int Server::send_str(const char* text)
 {
@@ -99,18 +126,26 @@ int Server::send_str(const char* text)
         return 1;
     }
     
-    this -> buf_common_memory = new char[length];
-    if (mmap(this -> buf_common_memory, length, PROT_WRITE, MAP_SHARED, this -> common_memory, 0) == MAP_FAILED)
+
+
+    //this -> buf_common_memory = new char[length];
+    if ((this -> buf_common_memory = mmap(nullptr, length, PROT_WRITE | PROT_READ, MAP_SHARED_VALIDATE, this -> common_memory, 0)) == MAP_FAILED)
     {
-        perror("Failed to mmap");
+        perror("Failed to mmap in Server");
+        
+        shm_unlink(this -> common_memory_name);
+        close(this -> common_memory);
+        
         return 1;
     }
     
+    
     strcpy((char*) (this -> buf_common_memory) + (int) sizeof(int), text);
     
-    (*(this -> counter))++;
+    *(int*) this -> buf_common_memory = ++(*(this -> counter));
+    //printf("%d %d\n", *(this -> counter), *(int*) this -> buf_common_memory);
     
-    munmap(buf_common_memory, length);
+    munmap(this -> buf_common_memory, length);
     
     return 0;
 }
@@ -133,22 +168,24 @@ int Client::print_str()
     }
     
     this -> buf_common_memory = new char[length];
-    if (mmap(this -> buf_common_memory, length, PROT_WRITE, MAP_SHARED, this -> common_memory, 0) == MAP_FAILED)
+    if ((this -> buf_common_memory = mmap(this -> buf_common_memory, length, PROT_READ, MAP_SHARED, this -> common_memory, 0)) == MAP_FAILED)
     {
-        perror("Failed to mmap");
+        perror("Failed to mmap int client");
         return 1;
     }
     
-    if (*(this -> counter) < *((int*) this -> buf_common_memory))
-        printf("%s\n", (char*) (this -> buf_common_memory) + (int) sizeof(int)); 
+    if (*(this -> counter) < *((int*) this -> buf_common_memory))        
+        printf("%s\n", (char*) (this -> buf_common_memory) + (int) sizeof(int));
+    
+    else if(*(this -> counter) == *((int*) this -> buf_common_memory) and *((int*) this -> buf_common_memory) == 0)
+        printf("%s\n", (char*) (this -> buf_common_memory) + (int) sizeof(int));     
+    
     
     *(this -> counter) = *((int*) this -> buf_common_memory);
     
+    munmap(this -> buf_common_memory, length);
+    
     return 0;
 }
-
-
-
-
 
 

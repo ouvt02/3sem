@@ -10,8 +10,14 @@ int main(int argc, char* argv[])
     }
     
     Client client(argv[1]);
-    if (client.ok)
-        client.print_str();
+    while(true)
+    {
+        if (client.ok)
+        {
+            if(client.print_str() == 1)
+                return 1;
+        }
+    }
     
     return 0;
 }
