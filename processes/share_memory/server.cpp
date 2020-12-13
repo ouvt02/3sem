@@ -2,14 +2,6 @@
 #include <time.h>
 #include "shmem_lib.cpp"
 
-#ifndef RELEASE
-	#define DEBUG printf("\x1b[35m>> debug from <%s::%d>\n\x1b[0m", __FILE__, __LINE__);
-    #define SWITCH if (true)
-#else
-	#define DEBUG
-    #define SWITCH if (false)
-#endif
-
 int main(int argc, char* argv[])
 {
     if (argc < 3)
