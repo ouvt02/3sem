@@ -46,7 +46,6 @@ Server::Server(int port)
         this -> ok = false;
     }
     
-    //this -> addr_receiver = {AF_INET, htons(port), {htonl(INADDR_ANY)}};
     (this -> addr_receiver).sin_family = AF_INET;
     (this -> addr_receiver).sin_port = htons(port);
     (this -> addr_receiver).sin_addr.s_addr = htonl(INADDR_ANY);
@@ -98,7 +97,6 @@ Client::Client(int port)
         this -> ok = false;
     }
     
-    //this -> addr_sender = {AF_INET, htons(7542), {htonl(INADDR_ANY)}};
     (this -> addr_sender).sin_family = AF_INET;
     (this -> addr_sender).sin_port = htons(port);
     (this -> addr_sender).sin_addr.s_addr = htonl(INADDR_ANY);
