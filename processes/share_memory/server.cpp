@@ -4,9 +4,9 @@
 
 int main(int argc, char* argv[])
 {
-    if (argc < 3)
+    if (argc < 2)
     {
-        printf("Usage: %s [text of string] [name_of_shared_memory]\n", argv[0]);
+        printf("Usage: %s [name_of_shared_memory]\n", argv[0]);
         return 1;
     }
     
@@ -15,7 +15,7 @@ int main(int argc, char* argv[])
     size_t sufficient_lenght = 100;
     char* time_buf = new char[sufficient_lenght]{};
     
-    Server server(argv[2]);
+    Server server(argv[1]);
     while(true)
     {
         if(server.ok)

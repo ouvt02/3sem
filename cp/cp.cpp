@@ -19,23 +19,9 @@
 
 #define ERROR -1
 
-
-//#define RELEASE
-
-
-#ifndef RELEASE
-	#define DEBUG printf("\x1b[35m>> debug from <%s::%d>\n\x1b[0m", __FILE__, __LINE__);
-    #define SWITCH if (true)
-#else
-	#define DEBUG
-    #define SWITCH if (false)
-#endif
-
 #define MB * 1048576 //bytes in Megabyte
 #define KB * 1024
 #define BLOCK_SIZE 4 KB
-
-// #define _FILE_OFFSET_BITTS 64 //for lseek(without define may be short - 32) in man lseek64
 
 char* get_new_pathname(const char* directory_name, const char* file_name);
 int copy_directory(const char* src_pathname, const char* dst_name);
